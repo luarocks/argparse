@@ -8,7 +8,7 @@ Contents:
    parsers
    arguments
    options
-   mutexes
+   mutuals
    commands
    defaults
    callbacks

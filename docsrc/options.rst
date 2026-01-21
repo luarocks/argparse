@@ -55,6 +55,41 @@ Flags are almost identical to options, except that they don't take an argument b
       quiet = true
    }
 
+Negatable flags
+---------------
+
+Flags can be configured to accept a ``--no`` prefix for negation by setting the ``no_prefix`` property:
+
+.. code-block:: lua
+   :linenos:
+
+   parser:flag("--verbose")
+      :no_prefix(true)
+
+This allows the flag to be used in both positive and negative forms:
+
+.. code-block:: none
+
+   $ lua script.lua --verbose
+
+.. code-block:: lua
+
+   {
+      verbose = true
+   }
+
+.. code-block:: none
+
+   $ lua script.lua --noverbose
+
+.. code-block:: lua
+
+   {
+      verbose = false
+   }
+
+When ``no_prefix`` is enabled, the help message will display the option as ``--[no]verbose`` to indicate both forms are accepted.
+
 Control characters
 ------------------
 
