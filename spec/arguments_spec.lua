@@ -171,5 +171,34 @@ describe("tests related to positional arguments", function()
             parse:parse{"foo", "quu"}
          end, "argument 'foo' must be one of 'bar', 'baz', 'qu'")
       end)
+
+      it("handles remainder argument correctly", function()
+         local parser = Parser()
+         parser:argument "foo" {
+            args = "..."
+         }
+         local args = parser:parse({"bar", "--baz", "-qu"})
+         assert.same({foo = {"bar", "--baz", "-qu"}}, args)
+      end)
+
+      it("stops parsing options after remainder argument starts", function()
+         local parser = Parser()
+         parser:option "-f" "--foo"
+         parser:argument "rest" {
+            args = "..."
+         }
+         local args = parser:parse({"--foo", "value", "--foo", "other"})
+         assert.same({foo = "value", rest = {"--foo", "other"}}, args)
+      end)
+
+      it("captures all remaining arguments including options-like", function()
+         local parser = Parser()
+         parser:argument "input"
+         parser:argument "rest" {
+            args = "..."
+         }
+         local args = parser:parse({"in", "--foo", "-bar", "baz"})
+         assert.same({input = "in", rest = {"--foo", "-bar", "baz"}}, args)
+      end)
    end)
 end)

@@ -36,6 +36,7 @@ String ``N+``, where ``N`` is a number            ``N`` or more arguments
 String ``?``                                      An optional argument
 String ``*``                                      Any number of arguments
 String ``+``                                      At least one argument
+String ``...``                                    All remaining arguments
 ================================================= =============================
 
 If more than one argument can be consumed, a table is used to store the data.
@@ -89,3 +90,21 @@ The ``choices`` property can be used to restrict an argument to a set of choices
    Usage: script.lua [-h] {north,south,east,west}
 
    Error: argument 'direction' must be one of 'north', 'south', 'east', 'west'
+
+The ``...`` value can be used to capture all remaining command-line arguments, including options-like tokens. This is useful when passing arguments through to another command.
+
+.. code-block:: lua
+   :linenos:
+
+   parser:argument "pass_through"
+      :args "..."
+
+.. code-block:: none
+
+   $ lua script.lua foo --bar baz
+
+.. code-block:: lua
+
+   {
+      pass_through = {"foo", "--bar", "baz"}
+   }
