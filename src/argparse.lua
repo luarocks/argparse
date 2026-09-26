@@ -171,6 +171,10 @@ local function parse_boundaries(str)
       return 0, 1
    end
 
+   if str == "..." then
+      return 0, math.huge, true
+   end
+
    if str:match "^%d+%-%d+$" then
       local min, max = str:match "^(%d+)%-(%d+)$"
       return tonumber(min), tonumber(max)
@@ -186,13 +190,17 @@ local function boundaries(name)
    return {name, function(self, value)
       typecheck(name, {"number", "string"}, value)
 
-      local min, max = parse_boundaries(value)
+      local min, max, remainder = parse_boundaries(value)
 
       if not min then
          error(("bad property '%s'"):format(name))
       end
 
       self["_min" .. name], self["_max" .. name] = min, max
+
+      if remainder then
+         self["_remainder" .. name] = true
+      end
    end}
 end
 
@@ -276,7 +284,9 @@ local Parser = class({
 
 local Command = class({
    _aliases = {},
-   _public_aliases = {}
+   _public_aliases = {},
+   _minargs = 0,
+   _maxargs = 0,
 }, {
    args = 3,
    multiname,
@@ -298,7 +308,8 @@ local Command = class({
    typechecked("help_description_margin", "number"),
    typechecked("help_max_width", "number"),
    typechecked("hidden", "boolean"),
-   add_help
+   add_help,
+   boundaries("args")
 }, Parser)
 
 local Argument = class({
@@ -393,6 +404,10 @@ function Argument:_get_argument_list()
    end
 
    if i < self._maxargs then
+      table.insert(buf, "...")
+   end
+
+   if self._remainderargs then
       table.insert(buf, "...")
    end
 
@@ -1909,16 +1924,56 @@ function ParseState:invoke(option, name)
 end
 
 function ParseState:pass(arg)
+   if self._stop_parsing then
+      if self.option and self.option.element._remainderargs then
+         self.option:pass(arg)
+         return
+      end
+
+      if self.argument and self.argument.element._remainderargs then
+         self.argument:pass(arg)
+         return
+      end
+
+      -- If a command with nargs="..." triggered stop, collect remaining args
+      if self._command_remainderargs_table then
+         table.insert(self._command_remainderargs_table, arg)
+         return
+      end
+   end
+
    if self.option then
+      if self.option.element._remainderargs then
+         self.option:pass(arg)
+         self._stop_parsing = true
+         return
+      end
+
       if not self.option:pass(arg) then
          self.option = nil
+         -- If next argument is a remainder argument, stop option parsing
+         if self.argument and self.argument.element._remainderargs then
+            self._stop_parsing = true
+         end
       end
    elseif self.argument then
+      if self.argument.element._remainderargs then
+         self:check_mutexes(self.argument)
+         self.argument:pass(arg)
+         self._stop_parsing = true
+         self.handle_options = false
+         return
+      end
+
       self:check_mutexes(self.argument)
 
       if not self.argument:pass(arg) then
          self.argument_i = self.argument_i + 1
          self.argument = self.arguments[self.argument_i]
+
+         if self.argument and self.argument.element._remainderargs then
+            self._stop_parsing = true
+         end
       end
    else
       local command = self:get_command(arg)
@@ -1926,6 +1981,13 @@ function ParseState:pass(arg)
 
       if self.parser._command_target then
          self.result[self.parser._command_target] = command._name
+      end
+
+      -- If command has nargs="...", prepare to collect remaining args
+      if command._remainderargs then
+         self._command_remainder_target = command._target or command._name
+         self._command_remainderargs_table = {}
+         self._stop_parsing = true
       end
 
       self:switch(command)
@@ -1948,6 +2010,14 @@ function ParseState:finalize()
          argument:complete_invocation()
       else
          argument:close()
+      end
+   end
+
+   -- Store command remainder args into result
+   if self._command_remainderargs_table and self._command_remainder_target then
+      -- If there are remainder args, store them; otherwise keep the true value
+      if #self._command_remainderargs_table > 0 then
+         self.result[self._command_remainder_target] = self._command_remainderargs_table
       end
    end
 
@@ -1991,10 +2061,14 @@ function ParseState:parse(args)
    for _, arg in ipairs(args) do
       local plain = true
 
-      if self.handle_options then
+      if not self._stop_parsing and not self._command_remainderargs_table and self.handle_options then
          local first = arg:sub(1, 1)
 
-         if self.charset[first] then
+         -- Skip option parsing if current argument is remainder args and we've already collected at least one arg
+         -- But allow the first option to be parsed normally
+         if self.argument and self.argument.element._remainderargs and #self.argument.args > 0 then
+            plain = true
+         elseif self.charset[first] then
             if #arg > 1 then
                plain = false
 
@@ -2043,6 +2117,10 @@ function ParseState:parse(args)
 
       if plain then
          self:pass(arg)
+      end
+
+      if self._stop_parsing then
+         self.handle_options = false
       end
    end
 

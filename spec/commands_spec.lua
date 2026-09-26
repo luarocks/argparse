@@ -72,4 +72,61 @@ describe("tests related to commands", function()
 
       assert.has_error(function() parser:parse{"run"} end, "unknown command 'run'")
    end)
+
+   it("stops parsing options after command with nargs='...'", function()
+      local parser = Parser "name"
+         :add_help(false)
+      local cmd = parser:command "run"
+         :args("...")
+      cmd:option "--foo"
+
+      local args = parser:parse{"run", "--bar", "--baz", "qux"}
+      assert.same({run = {"--bar", "--baz", "qux"}}, args)
+   end)
+
+   it("parses options before command with nargs='...'", function()
+      local parser = Parser "name"
+         :add_help(false)
+      parser:option "--global"
+      local cmd = parser:command "run"
+         :args("...")
+      cmd:option "--foo"
+
+      local args = parser:parse{"--global", "value", "run", "--bar", "--baz"}
+      assert.same({global = "value", run = {"--bar", "--baz"}}, args)
+   end)
+
+   it("handles command with nargs='...' without remainder args", function()
+      local parser = Parser "name"
+         :add_help(false)
+      local cmd = parser:command "run"
+         :args("...")
+      cmd:option "--foo"
+
+      local args = parser:parse{"run"}
+      assert.same({run = true}, args)
+   end)
+
+   it("handles nested commands with nargs='...'", function()
+      local parser = Parser "name"
+         :add_help(false)
+      local foo = parser:command "foo"
+      local bar = foo:command "bar"
+         :args("...")
+      bar:option "--opt"
+
+      local args = parser:parse{"foo", "bar", "--something", "--else"}
+      assert.same({foo = true, bar = {"--something", "--else"}}, args)
+   end)
+
+   it("command with nargs='...' captures options-like strings", function()
+      local parser = Parser "name"
+         :add_help(false)
+      parser:option "--before"
+      local cmd = parser:command "exec"
+         :args("...")
+
+      local args = parser:parse{"--before", "val", "exec", "-x", "--flag", "arg"}
+      assert.same({before = "val", exec = {"-x", "--flag", "arg"}}, args)
+   end)
 end)

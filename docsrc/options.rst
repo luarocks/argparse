@@ -107,6 +107,25 @@ Just as arguments, options can be configured to take several command line argume
 
 Note that the data passed to ``optional`` option is stored in an array. That is necessary to distinguish whether the option was invoked without an argument or it was not invoked at all.
 
+The ``...`` value works the same as for positional arguments: after the option is invoked, all remaining command-line arguments are captured as its values, including options-like tokens.
+
+.. code-block:: lua
+   :linenos:
+
+   parser:option "--rest"
+      :args "..."
+
+.. code-block:: none
+
+   $ lua script.lua --rest foo --bar baz
+
+.. code-block:: lua
+
+   {
+      rest = {"foo", "--bar", "baz"}
+   }
+
+
 Setting argument choices
 ------------------------
 

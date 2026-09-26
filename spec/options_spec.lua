@@ -339,5 +339,24 @@ describe("tests related to options", function()
             function() parser:parse{}
          end, "missing option '-f'")
       end)
+
+      it("handles remainder option correctly", function()
+         local parser = Parser()
+         parser:option "-r" "--rest" {
+            args = "..."
+         }
+         local args = parser:parse({"--rest", "foo", "--bar", "-baz"})
+         assert.same({rest = {"foo", "--bar", "-baz"}}, args)
+      end)
+
+      it("stops parsing after remainder option starts", function()
+         local parser = Parser()
+         parser:option "-f" "--foo"
+         parser:option "-r" "--rest" {
+            args = "..."
+         }
+         local args = parser:parse({"--rest", "foo", "--foo", "bar"})
+         assert.same({rest = {"foo", "--foo", "bar"}}, args)
+      end)
    end)
 end)
